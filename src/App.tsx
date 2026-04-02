@@ -420,7 +420,7 @@ export default function App() {
         {currentView === 'risk-test' && (
           <RiskTest portfolioId={portfolioId} portfolio={portfolio} balance={balance} />
         )}
-        {currentView === 'community' && <Community />}
+        {currentView === 'community' && <Community stocks={stocks} />}
       </main>
     </div>
   );

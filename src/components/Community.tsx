@@ -33,8 +33,9 @@ import {
   type ClassroomStudentsResponse,
   type StudentWithPortfolios
 } from '../api/classroomApi';
-import { fetchStocks, getPortfolioPositions, mapPositionsToPortfolioItems } from '../api/moex';
+import { getPortfolioPositions, mapPositionsToPortfolioItems } from '../api/moex';
 import { useAuth } from '../auth/AuthContext';
+import type { Stock } from '../types';
 import { sectorLabelRu } from '../utils/sectorLabels';
 
 /** Длина кода учителя */
@@ -86,8 +87,11 @@ function mergeUniqueSectorLabels(raw: (string | null | undefined)[]): string[] {
 
 export type ClassroomHoldingLine = { secid: string; shortName: string };
 
-/** Сектора и тикеры по позициям портфелей (для карточек класса). */
-async function collectClassroomPortfolioMeta(students: StudentWithPortfolios[]): Promise<{
+/** Сектора и тикеры по позициям портфелей — справочник бумаг из уже загруженного маркета (без повторного fetch списка активов). */
+async function collectClassroomPortfolioMeta(
+  students: StudentWithPortfolios[],
+  marketStocks: Stock[]
+): Promise<{
   sectorsByStudentId: Record<number, string[]>;
   holdingsByStudentId: Record<number, ClassroomHoldingLine[]>;
 }> {
@@ -95,11 +99,7 @@ async function collectClassroomPortfolioMeta(students: StudentWithPortfolios[]):
   if (portfolioIds.length === 0) {
     return { sectorsByStudentId: {}, holdingsByStudentId: {} };
   }
-
-  let stocks: Awaited<ReturnType<typeof fetchStocks>>;
-  try {
-    stocks = await fetchStocks();
-  } catch {
+  if (marketStocks.length === 0) {
     return { sectorsByStudentId: {}, holdingsByStudentId: {} };
   }
 
@@ -108,7 +108,7 @@ async function collectClassroomPortfolioMeta(students: StudentWithPortfolios[]):
     portfolioIds.map(async pid => {
       try {
         const positions = await getPortfolioPositions(pid);
-        const items = mapPositionsToPortfolioItems(positions, stocks);
+        const items = mapPositionsToPortfolioItems(positions, marketStocks);
         const sectorSet = new Set<string>();
         const holdingMap = new Map<string, ClassroomHoldingLine>();
         for (const it of items) {
@@ -497,7 +497,7 @@ function TeacherDashboard({
           )}
 
           {data && data.students.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
               {data.students.map((row: StudentWithPortfolios) => {
                 const agg = aggregatePortfolios(row.portfolios, sectorsByStudentId[row.student.id]);
                 return (
@@ -694,7 +694,7 @@ function StudentCompareView({
         )}
 
         {data && data.students.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             {data.students.map((row: StudentWithPortfolios) => {
               const isMe = row.student.id === data.current_student_id;
               const agg = aggregatePortfolios(row.portfolios, sectorsByStudentId[row.student.id]);
@@ -746,7 +746,7 @@ function StudentCompareView({
   );
 }
 
-export function Community() {
+export function Community({ stocks }: { stocks: Stock[] }) {
   const { user, classroomSummary, joinClassroomByCode, refreshSession } = useAuth();
   const [teacherData, setTeacherData] = useState<ClassroomStudentsResponse | null>(null);
   const [compareData, setCompareData] = useState<ClassroomCompareResponse | null>(null);
@@ -815,7 +815,7 @@ export function Community() {
     let cancelled = false;
     void (async () => {
       try {
-        const map = await collectClassroomPortfolioMeta(students);
+        const map = await collectClassroomPortfolioMeta(students, stocks);
         if (!cancelled) {
           setSectorsByStudentId(map.sectorsByStudentId);
           setHoldingsByStudentId(map.holdingsByStudentId);
@@ -830,7 +830,7 @@ export function Community() {
     return () => {
       cancelled = true;
     };
-  }, [isTeacher, isStudent, studentHasTeacher, teacherData, compareData]);
+  }, [isTeacher, isStudent, studentHasTeacher, teacherData, compareData, stocks]);
 
   const handleCopyCode = async () => {
     const code = user?.teacher_code;
