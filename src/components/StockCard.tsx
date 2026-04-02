@@ -1,15 +1,43 @@
 import { useEffect, useState } from 'react';
+import { HelpCircle } from 'lucide-react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ApiError } from '../api/http';
 import { fetchAssetCandles } from '../api/moex';
 import { translateUserErrorMessage } from '../utils/apiErrorRu';
 import { dividendProfileRu } from '../utils/dividendProfileRu';
+import {
+  DIVIDENDS_WHAT,
+  LIQUIDITY_WHAT,
+  dividendValueInterpretation,
+  liquidityValueInterpretation
+} from '../utils/stockMetricHintsRu';
 import { Stock } from '../types';
+import { AssetLogo } from './AssetLogo';
 
 interface StockCardProps {
   key?: string | number;
   stock: Stock;
   onBuy: (stock: Stock, quantity: number) => void;
+}
+
+function MetricHintIcon({ text, label }: { text: string; label: string }) {
+  return (
+    <span className="relative inline-flex shrink-0 align-middle group">
+      <button
+        type="button"
+        className="rounded-full p-0.5 text-zinc-500 transition-colors hover:text-zinc-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
+        aria-label={label}
+      >
+        <HelpCircle className="h-4 w-4" strokeWidth={1.75} />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 w-[min(18rem,calc(100vw-2rem))] max-w-[min(18rem,calc(100vw-3rem))] -translate-y-1/2 rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2 text-left text-xs leading-relaxed text-zinc-200 shadow-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
 }
 
 const normalizeLevel = (value: string): 'low' | 'medium' | 'high' | 'none' | 'unknown' => {
@@ -82,15 +110,7 @@ export function StockCard({ stock, onBuy }: StockCardProps) {
   return (
     <div className="bg-[#2a2a2a] rounded-3xl p-6 text-zinc-100 shadow-lg flex flex-col border border-zinc-700/50 hover:border-zinc-600 transition-colors">
       <div className="flex items-center gap-4 mb-4">
-        {stock.logoUrl ? (
-          <div className={`w-16 h-16 bg-white flex items-center justify-center p-2 shrink-0 ${stock.secid === 'MOEX' ? 'rounded-xl' : 'rounded-full'}`}>
-            <img src={stock.logoUrl} alt={stock.shortName} className="w-full h-full object-contain" />
-          </div>
-        ) : (
-          <div className="w-16 h-16 bg-zinc-800 text-zinc-300 rounded-full flex items-center justify-center font-bold text-2xl shrink-0 border border-zinc-700">
-            {stock.shortName[0]}
-          </div>
-        )}
+        <AssetLogo logoUrl={stock.logoUrl} secid={stock.secid} shortName={stock.shortName} size="md" />
 
         <div className="flex-1">
           <h3 className="text-lg font-medium leading-tight">{stock.shortName}</h3>
@@ -158,20 +178,32 @@ export function StockCard({ stock, onBuy }: StockCardProps) {
             {dayRange ? ` • Диапазон: ${dayRange}` : ''}
           </p>
 
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-[#3a3a3a] rounded-lg px-3 py-1.5 text-sm text-zinc-300">Ликвидность:</div>
-              <span className={`text-lg font-medium ${getColorClass(stock.liquidity)}`}>{stock.liquidity || 'Не указано'}</span>
+          <div className="overflow-visible rounded-xl border border-zinc-700/50 bg-[#252525] p-4 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-zinc-200">Ликвидность</p>
+              <MetricHintIcon text={LIQUIDITY_WHAT} label="Что такое ликвидность" />
             </div>
+            <div className="flex flex-wrap items-baseline gap-2 pt-1">
+              <span className="text-xs text-zinc-500 shrink-0">В профиле:</span>
+              <span className={`text-base font-semibold ${getColorClass(stock.liquidity)}`}>
+                {stock.liquidity || 'Не указано'}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">{liquidityValueInterpretation(stock.liquidity)}</p>
           </div>
 
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-[#3a3a3a] rounded-lg px-3 py-1.5 text-sm text-zinc-300">Дивиденды:</div>
-              <span className={`text-lg font-medium ${getColorClass(dividendProfileRu(stock.dividends) || stock.dividends)}`}>
+          <div className="overflow-visible rounded-xl border border-zinc-700/50 bg-[#252525] p-4 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-zinc-200">Дивиденды</p>
+              <MetricHintIcon text={DIVIDENDS_WHAT} label="Что такое дивидендный профиль" />
+            </div>
+            <div className="flex flex-wrap items-baseline gap-2 pt-1">
+              <span className="text-xs text-zinc-500 shrink-0">В профиле:</span>
+              <span className={`text-base font-semibold ${getColorClass(dividendProfileRu(stock.dividends) || stock.dividends)}`}>
                 {dividendProfileRu(stock.dividends) || 'Не указано'}
               </span>
             </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">{dividendValueInterpretation(stock.dividends)}</p>
           </div>
         </div>
       )}

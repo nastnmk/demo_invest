@@ -29,6 +29,9 @@ type AssetPriceRead = {
 
 type AssetProfileRead = {
   asset_id: number;
+  /** URL логотипа из asset profile */
+  image_url?: string | null;
+  imageUrl?: string | null;
   sector?: string | null;
   description?: string | null;
   risk_level?: string | null;
@@ -40,6 +43,14 @@ type AssetProfileRead = {
   dividends?: string | null;
   liquidity_level?: string | null;
 };
+
+function logoUrlFromProfile(profile: AssetProfileRead | undefined): string | undefined {
+  if (!profile) return undefined;
+  const u = profile.image_url ?? profile.imageUrl;
+  if (typeof u !== 'string') return undefined;
+  const t = u.trim();
+  return t.length > 0 ? t : undefined;
+}
 
 function dividendProfileFromApi(profile: AssetProfileRead | undefined): string | null {
   if (!profile) return null;
@@ -440,7 +451,7 @@ export async function fetchStocks(): Promise<Stock[]> {
         liquidity: normalizeLiquidityLabel(profile?.liquidity_level),
         dividends: dividendProfileRu(dividendProfileFromApi(profile)),
         description,
-        logoUrl: undefined,
+        logoUrl: logoUrlFromProfile(profile),
         dayRange: low != null && high != null ? `${Number(low).toFixed(2)} - ${Number(high).toFixed(2)} ₽` : undefined,
         periodLabel: undefined,
         chartPoints: undefined

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { PortfolioItem } from '../types';
+import { AssetLogo } from './AssetLogo';
 
 type Props = {
   item: PortfolioItem;
@@ -41,15 +42,7 @@ export function PortfolioPositionRow({ item, onTradeDelta, onSell, allowAddShare
     <div className="bg-[#3a3a3a] p-3 rounded-2xl border border-zinc-700/50 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          {stock.logoUrl ? (
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-1 shrink-0">
-              <img src={stock.logoUrl} alt="" className="w-full h-full object-contain" />
-            </div>
-          ) : (
-            <div className="w-10 h-10 bg-zinc-800 border border-zinc-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-zinc-300">
-              {stock.shortName[0]}
-            </div>
-          )}
+          <AssetLogo logoUrl={stock.logoUrl} secid={stock.secid} shortName={stock.shortName} size="sm" />
           <div className="min-w-0">
             <p className="text-xs text-zinc-400 leading-tight">Акция</p>
             <p className="font-semibold text-sm text-zinc-200 leading-tight truncate">{stock.shortName}</p>

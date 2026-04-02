@@ -1,4 +1,4 @@
-﻿export interface Stock {
+export interface Stock {
   assetId?: number;
   secid: string;
   shortName: string;
@@ -9,6 +9,7 @@
   liquidity: string;
   dividends: string;
   description: string;
+  /** из asset profile (image_url), иначе UI — монограмма */
   logoUrl?: string;
   dayRange?: string;
   periodLabel?: string;
