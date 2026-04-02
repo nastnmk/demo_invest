@@ -127,6 +127,19 @@ function priceDeltaPerLot(item: StressAssetImpactApi): number {
   return Number((item.stressed_price - item.current_price).toFixed(4));
 }
 
+/** Для сортировки сценариев: новее событие (позже дата окончания / начала) — выше в списке. */
+function stressScenarioTimeMs(s: StressScenarioFull): number {
+  const end = s.end_date ? new Date(s.end_date).getTime() : NaN;
+  const start = s.start_date ? new Date(s.start_date).getTime() : NaN;
+  if (!Number.isNaN(end)) return end;
+  if (!Number.isNaN(start)) return start;
+  return 0;
+}
+
+function sortScenariosByDateDesc(items: StressScenarioFull[]): StressScenarioFull[] {
+  return [...items].sort((a, b) => stressScenarioTimeMs(b) - stressScenarioTimeMs(a));
+}
+
 export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
   const [scenarios, setScenarios] = useState<StressScenarioFull[]>([]);
   const [scenariosLoading, setScenariosLoading] = useState(true);
@@ -146,7 +159,7 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
       try {
         const res = await fetchStressScenariosFull();
         if (cancelled) return;
-        const items = res.items ?? [];
+        const items = sortScenariosByDateDesc(res.items ?? []);
         setScenarios(items);
         if (items.length > 0) setActiveScenarioId(prev => prev ?? items[0].id);
       } catch {
@@ -518,11 +531,13 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
 
         {stressResult && (
           <>
-            <h2 className="text-xl font-bold tracking-tight mb-4">По каждой бумаге</h2>
-            <div className="overflow-x-auto bg-[#2a2a2a] rounded-2xl border border-zinc-700/50 mb-8">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-zinc-400 text-sm border-b border-zinc-700/50">
+            <h2 className="text-xl font-bold tracking-tight mb-1">По каждой бумаге</h2>
+            <p className="text-xs text-zinc-500 mb-3">Список можно прокручивать внутри блока — не нужно листать всю страницу.</p>
+            <div className="bg-[#2a2a2a] rounded-2xl border border-zinc-700/50 mb-8 overflow-hidden flex flex-col">
+              <div className="max-h-[min(72vh,560px)] overflow-y-auto overflow-x-auto overscroll-y-contain [scrollbar-gutter:stable]">
+                <table className="w-full text-left border-collapse min-w-[720px]">
+                  <thead className="sticky top-0 z-10 bg-[#2a2a2a] shadow-[inset_0_-1px_0_0_rgba(63,63,70,0.9)]">
+                    <tr className="text-zinc-400 text-sm border-b border-zinc-700/50">
                     <th className="py-4 px-4">Акция</th>
                     <th className="py-4 px-4 hidden sm:table-cell">Сектор</th>
                     <th className="py-4 px-4">Вложено</th>
@@ -701,6 +716,7 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="h-80 w-full bg-[#2a2a2a] rounded-2xl p-6 border border-zinc-700/50 mb-6">

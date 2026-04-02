@@ -1,5 +1,6 @@
 import { API_BASE } from './config';
 import { getAccessToken } from '../auth/token';
+import { httpStatusTextRu, translateUserErrorMessage } from '../utils/apiErrorRu';
 
 export class ApiError extends Error {
   constructor(
@@ -7,7 +8,7 @@ export class ApiError extends Error {
     message: string,
     public body?: unknown
   ) {
-    super(message);
+    super(translateUserErrorMessage(message));
     this.name = 'ApiError';
   }
 }
@@ -30,7 +31,13 @@ type ValidationErrItem = {
 const FIELD_LABEL_RU: Record<string, string> = {
   password: 'Пароль',
   email: 'Email',
-  name: 'Имя'
+  name: 'Имя',
+  quantity: 'Количество',
+  asset_id: 'Актив',
+  portfolio_id: 'Портфель',
+  body: 'Данные',
+  query: 'Запрос',
+  path: 'Путь'
 };
 
 function humanizeValidationMsg(msg: string, item: ValidationErrItem): string {
@@ -41,6 +48,14 @@ function humanizeValidationMsg(msg: string, item: ValidationErrItem): string {
   }
   if (m.includes('value is not a valid email')) return 'некорректный email';
   if (m.includes('field required')) return 'обязательное поле';
+  if (m.includes('none is not an allowed value')) return 'укажите значение';
+  if (m.includes('ensure this value has at least') && m.includes('character')) {
+    const min = typeof item.ctx?.min_length === 'number' ? item.ctx.min_length : undefined;
+    if (min != null) return `не менее ${min} символов`;
+  }
+  if (m.includes('input should be a valid string')) return 'ожидается строка';
+  if (m.includes('input should be greater than')) return 'значение слишком мало';
+  if (m.includes('input should be less than')) return 'значение слишком велико';
   return msg;
 }
 
@@ -80,7 +95,9 @@ function messageFromParsedBody(parsed: unknown): string | null {
 
 async function errorMessageFromResponse(res: Response): Promise<string> {
   const text = await res.text();
-  if (!text) return res.statusText;
+  if (!text) {
+    return res.statusText?.trim() ? res.statusText : httpStatusTextRu(res.status);
+  }
   try {
     const parsed = JSON.parse(text) as unknown;
     const fromBody = messageFromParsedBody(parsed);
@@ -108,10 +125,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    throw new ApiError(
-      0,
-      `Нет соединения с сервером (${reason}). Проверьте сеть и что API запущен (см. README).`
-    );
+    throw new ApiError(0, reason);
   }
 
   if (response.status === 401 && token) {

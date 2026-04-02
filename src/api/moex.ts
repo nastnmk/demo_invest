@@ -3,6 +3,7 @@
  * портфель, аналитика, стресс-сценарии (сценарии и % изменений приходят с backend, не зашиты во фронте).
  */
 import { PortfolioItem, Stock } from '../types';
+import { dividendProfileRu } from '../utils/dividendProfileRu';
 import { sectorLabelRu } from '../utils/sectorLabels';
 import { requestJson as apiRequest } from './http';
 
@@ -31,9 +32,19 @@ type AssetProfileRead = {
   sector?: string | null;
   description?: string | null;
   risk_level?: string | null;
+  /** snake_case из FastAPI */
   dividend_profile?: string | null;
+  /** на случай camelCase в JSON */
+  dividendProfile?: string | null;
+  /** альтернативное имя поля в некоторых ответах API */
+  dividends?: string | null;
   liquidity_level?: string | null;
 };
+
+function dividendProfileFromApi(profile: AssetProfileRead | undefined): string | null {
+  if (!profile) return null;
+  return profile.dividend_profile ?? profile.dividendProfile ?? profile.dividends ?? null;
+}
 
 type PortfolioRead = {
   id: number;
@@ -271,6 +282,55 @@ export async function refreshLivePrices(secids: string[]): Promise<RefreshLiveRe
   });
 }
 
+/** Подставить свежие last_price из ответа refresh-live в уже загруженный список бумаг. */
+export function mergeStocksWithLivePrices(stocks: Stock[], live: RefreshLiveResponse | null | undefined): Stock[] {
+  const items = live?.items;
+  if (!items?.length) return stocks;
+  const bySecid = new Map(items.map(i => [i.secid, i]));
+  return stocks.map(s => {
+    const row = bySecid.get(s.secid);
+    if (!row) return s;
+    const p = toNumber(row.last_price);
+    if (p == null) return s;
+    return { ...s, price: Number(p.toFixed(2)) };
+  });
+}
+
+/**
+ * Обновить котировки только для указанных тикеров (после сделки), без полного fetchStocks().
+ */
+export async function patchStocksPricesForSecids(stocks: Stock[], secids: string[]): Promise<Stock[]> {
+  const uniq = [...new Set(secids)].filter(Boolean);
+  if (uniq.length === 0) return stocks;
+  const live = await refreshLivePrices(uniq).catch(() => null);
+  let merged = mergeStocksWithLivePrices(stocks, live ?? undefined);
+  const needFallback = uniq.filter(secid => {
+    const row = live?.items?.find(i => i.secid === secid);
+    return !row || toNumber(row.last_price) == null;
+  });
+  if (needFallback.length === 0) return merged;
+
+  const bySecid = new Map(merged.map(s => [s.secid, s]));
+  for (const secid of needFallback) {
+    const s = bySecid.get(secid);
+    if (!s?.assetId) continue;
+    try {
+      const price = await apiRequest<AssetPriceRead>(`/api/v1/assets/${s.assetId}/price`);
+      const lp = toNumber(price.last_price);
+      if (lp == null) continue;
+      const ch = toNumber(price.change_pct) ?? 0;
+      bySecid.set(secid, {
+        ...s,
+        price: Number(lp.toFixed(2)),
+        changePct: Number(ch.toFixed(2))
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+  return merged.map(s => bySecid.get(s.secid) ?? s);
+}
+
 export type PortfolioAnalyticsHistoryPoint = {
   date: string;
   value: number;
@@ -378,7 +438,7 @@ export async function fetchStocks(): Promise<Stock[]> {
           : asset.currency,
         riskLevel: normalizeRiskLabel(profile?.risk_level),
         liquidity: normalizeLiquidityLabel(profile?.liquidity_level),
-        dividends: profile?.dividend_profile?.trim() || '',
+        dividends: dividendProfileRu(dividendProfileFromApi(profile)),
         description,
         logoUrl: undefined,
         dayRange: low != null && high != null ? `${Number(low).toFixed(2)} - ${Number(high).toFixed(2)} ₽` : undefined,

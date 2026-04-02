@@ -96,7 +96,7 @@ export function Community() {
       </div>
 
       <img
-        src="/moex-mascot.png"
+        src="/logo-pug.png"
         alt="Маскот инвест-симулятора"
         className="hidden xl:block absolute right-[-130px] bottom-[-60px] w-[560px] pointer-events-none select-none"
       />

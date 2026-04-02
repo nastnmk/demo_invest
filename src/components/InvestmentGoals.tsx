@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lightbulb, Target } from 'lucide-react';
+import { Lightbulb } from 'lucide-react';
 
 export type InvestmentGoalId = 'dream' | 'passive' | 'grow';
 
@@ -9,7 +9,8 @@ type GoalDef = {
   description: string;
   icon: string;
   interpretationTitle: string;
-  bullets: string[];
+  /** Ориентиры по цели + по секторам (финансы и др.) */
+  recommendations: string[];
 };
 
 const GOALS: GoalDef[] = [
@@ -19,9 +20,11 @@ const GOALS: GoalDef[] = [
     description: 'Поможем рассчитать, как достичь конкретной финансовой цели.',
     icon: '🚀',
     interpretationTitle: 'Кратко: под цель',
-    bullets: [
+    recommendations: [
       'Задайте сумму и срок — от них зависит допустимая доля рискованных бумаг.',
-      'Ближе к дедлайну смещайте вес в менее волатильные сектора.'
+      'Ближе к дедлайну смещайте вес в менее волатильные сектора.',
+      'Финансовый сектор (банки, страхование) часто стабильнее рынка в целом — имеет смысл держать заметную долю в «защитных» финансовых бумагах.',
+      'Добавьте диверсификацию: потребительский сектор, телеком и часть облигаций снижают просадки при приближении к цели.'
     ]
   },
   {
@@ -30,9 +33,11 @@ const GOALS: GoalDef[] = [
     description: 'Сформируем капитал, который будет приносить вам стабильный доход.',
     icon: '💰',
     interpretationTitle: 'Кратко: пассивный доход',
-    bullets: [
+    recommendations: [
       'Смотрите на устойчивость дивидендных потоков и диверсификацию по отраслям.',
-      'Реинвестируйте выплаты и проверяйте портфель при смене условий на рынке.'
+      'Реинвестируйте выплаты и пересматривайте портфель при смене ставок и дивидендной политики.',
+      'Финансовые эмитенты и «традиционные» дивидендные истории (утилиты, телеком) обычно лучше подходят для пассивного дохода, чем чистые growth-акции.',
+      'Не кладите всё в одну отрасль: сочетайте финансы, потребительский сектор и облигации под вашу долю риска.'
     ]
   },
   {
@@ -41,9 +46,11 @@ const GOALS: GoalDef[] = [
     description: 'Простой способ вложить деньги и получать прогнозируемый доход.',
     icon: '📈',
     interpretationTitle: 'Кратко: рост капитала',
-    bullets: [
+    recommendations: [
       'Сочетайте горизонт и риск: дольше срок — можно больше ростовых историй.',
-      'Оценивайте портфель в целом (в т. ч. Шарп), а не отдельные «удачные» акции.'
+      'Оценивайте портфель в целом (в т. ч. коэффициент Шарпа), а не отдельные «удачные» акции.',
+      'Даже при упоре на рост оставляйте часть в более спокойных секторах: финансы и крупный телеком дают опору при коррекциях.',
+      'Если портфель перегружен одной темой (например, только IT), добавьте финансы или потребительский сектор для баланса.'
     ]
   }
 ];
@@ -116,36 +123,26 @@ export function InvestmentGoals({ portfolioCount, uniqueSectors, className = '' 
           >
             <div className="flex items-center justify-start gap-2 mb-2">
               <div className="bg-red-950/40 rounded-md p-1 shrink-0 border border-red-900/40">
-                <Lightbulb className="w-3.5 h-3.5 text-red-300" aria-hidden />
+                <Lightbulb className="w-4 h-4 text-red-300" aria-hidden />
               </div>
-              <h3 className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                {selected.interpretationTitle}
-                <Target className="w-3 h-3 text-zinc-600 shrink-0" aria-hidden />
-              </h3>
+              <h3 className="text-sm font-semibold text-zinc-200">{selected.interpretationTitle}</h3>
             </div>
-            <p className="text-left text-[10px] text-zinc-600 mb-2">Ориентиры, не индивидуальная рекомендация</p>
+            <p className="text-left text-xs text-zinc-500 mb-3">Ориентиры, не индивидуальная рекомендация</p>
 
             {extraHint && (
-              <p className="text-amber-200/85 text-[10px] bg-amber-950/20 border border-amber-800/30 rounded-lg px-2.5 py-1.5 mb-2 text-left">
+              <p className="text-amber-200/85 text-xs bg-amber-950/20 border border-amber-800/30 rounded-lg px-2.5 py-1.5 mb-3 text-left">
                 {extraHint}
               </p>
             )}
 
-            <ul className="space-y-1 text-zinc-500 text-[11px] leading-snug max-w-md text-left">
-              {selected.bullets.map((line, i) => (
-                <li key={i} className="flex gap-2 justify-start">
-                  <span className="text-zinc-600 shrink-0 font-mono text-[9px] w-4">{i + 1}.</span>
+            <ul className="space-y-2.5 text-zinc-300 text-sm leading-relaxed max-w-2xl text-left">
+              {selected.recommendations.map((line, i) => (
+                <li key={i} className="flex gap-3 justify-start">
+                  <span className="text-zinc-500 shrink-0 font-mono text-xs w-5 pt-0.5">{i + 1}.</span>
                   <span>{line}</span>
                 </li>
               ))}
             </ul>
-
-            {/* Зарезервировано под AI-подсказку */}
-            <div className="mt-3 rounded-lg border border-dashed border-zinc-600/50 bg-zinc-900/40 px-3 py-2.5 text-left">
-              <p className="text-[10px] text-zinc-600 leading-snug">
-                Персональная рекомендация (ИИ) — скоро здесь
-              </p>
-            </div>
           </div>
         )}
       </div>

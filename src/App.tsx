@@ -25,12 +25,13 @@ import {
   getPortfolioPositions,
   listPortfolios,
   mapPositionsToPortfolioItems,
+  patchStocksPricesForSecids,
   refreshLivePrices,
   sellAsset,
   type PortfolioAnalyticsHistoryPoint,
   type PortfolioMetrics
 } from './api/moex';
-import { Briefcase, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 const INITIAL_BALANCE = 1000000;
 const MAX_PORTFOLIO_ITEMS = 15;
@@ -44,7 +45,9 @@ export default function App() {
   const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const [portfolioChartPoints, setPortfolioChartPoints] = useState<PortfolioAnalyticsHistoryPoint[]>([]);
   const [portfolioMetrics, setPortfolioMetrics] = useState<PortfolioMetrics | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  /** Только ручное «Обновить цены» — не путать с первичной загрузкой после F5 */
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [hasSeenAnalyticsWithPortfolio, setHasSeenAnalyticsWithPortfolio] = useState(false);
 
@@ -86,7 +89,7 @@ export default function App() {
 
     let cancelled = false;
     (async () => {
-      setIsRefreshing(true);
+      setIsBootstrapping(true);
       setApiError(null);
       try {
         const portfolios = await listPortfolios();
@@ -101,7 +104,7 @@ export default function App() {
         portfolioBootRef.current = false;
         if (!cancelled) setApiError('Не удалось загрузить данные. Проверьте API и авторизацию.');
       } finally {
-        if (!cancelled) setIsRefreshing(false);
+        if (!cancelled) setIsBootstrapping(false);
       }
     })();
     return () => {
@@ -147,25 +150,45 @@ export default function App() {
     setPortfolioMetrics(metrics);
   };
 
-  const refreshAll = useCallback(async () => {
+  /** Полное обновление маркета — только по кнопке «Обновить цены». */
+  const reloadMarketData = useCallback(async () => {
     if (!portfolioId) return;
-    setIsRefreshing(true);
-    setApiError(null);
-    try {
-      const secids = new Set<string>();
-      stocksRef.current.forEach(s => secids.add(s.secid));
-      portfolioRef.current.forEach(p => secids.add(p.stock.secid));
-      await refreshLivePrices([...secids]).catch(() => null);
-      const latestStocks = await fetchStocks();
+    const secids = new Set<string>();
+    stocksRef.current.forEach(s => secids.add(s.secid));
+    portfolioRef.current.forEach(p => secids.add(p.stock.secid));
+    await refreshLivePrices([...secids]).catch(() => null);
+    const latestStocks = await fetchStocks();
+    setStocks(latestStocks);
+    await refreshPortfolioFn(portfolioId, latestStocks);
+  }, [portfolioId]);
+
+  /** После сделки: только портфель + цены по затронутым тикерам (без полного fetchStocks). */
+  const syncPortfolioAfterTrade = useCallback(
+    async (touchedSecids: string[]) => {
+      if (!portfolioId) return;
+      const uniq = [...new Set(touchedSecids)].filter(Boolean);
+      if (uniq.length === 0) return;
+      const latestStocks = await patchStocksPricesForSecids(stocksRef.current, uniq);
       setStocks(latestStocks);
       await refreshPortfolioFn(portfolioId, latestStocks);
+    },
+    [portfolioId]
+  );
+
+  /** Только кнопка «Обновить цены» */
+  const refreshPrices = useCallback(async () => {
+    if (!portfolioId) return;
+    setIsRefreshingPrices(true);
+    setApiError(null);
+    try {
+      await reloadMarketData();
     } catch (error) {
-      console.error('Failed to refresh data from API:', error);
-      setApiError('Не удалось обновить данные из API.');
+      console.error('Failed to refresh prices:', error);
+      setApiError('Не удалось обновить котировки.');
     } finally {
-      setIsRefreshing(false);
+      setIsRefreshingPrices(false);
     }
-  }, [portfolioId]);
+  }, [portfolioId, reloadMarketData]);
 
   const handleBuy = async (stock: Stock, quantity: number = 1) => {
     if (!portfolioId || stock.assetId == null) return;
@@ -182,7 +205,7 @@ export default function App() {
     try {
       await buyAsset(portfolioId, stock.assetId, quantity);
       setApiError(null);
-      await refreshAll();
+      await syncPortfolioAfterTrade([stock.secid]);
     } catch (e) {
       if (e instanceof ApiError) {
         setApiError(e.message);
@@ -207,7 +230,7 @@ export default function App() {
     try {
       await sellAsset(portfolioId, stock.assetId, sellQuantity);
       setApiError(null);
-      await refreshAll();
+      await syncPortfolioAfterTrade([stock.secid]);
     } catch (e) {
       if (e instanceof ApiError) {
         setApiError(e.message);
@@ -221,6 +244,7 @@ export default function App() {
     if (!portfolioId) return;
     const buf = tradeDeltaRef.current;
     if (buf.size === 0) return;
+    const touchedSecids = [...buf.entries()].filter(([, net]) => net !== 0).map(([secid]) => secid);
     tradeDeltaRef.current = new Map();
     let lastError: string | null = null;
     for (const [secid, net] of buf) {
@@ -254,12 +278,12 @@ export default function App() {
     }
     if (lastError) setApiError(lastError);
     try {
-      await refreshAll();
+      await syncPortfolioAfterTrade(touchedSecids);
     } catch (e) {
       console.error(e);
       setApiError('Не удалось обновить после сделки.');
     }
-  }, [portfolioId, refreshAll]);
+  }, [portfolioId, syncPortfolioAfterTrade]);
 
   const queueTradeDelta = useCallback(
     (stock: Stock, delta: number) => {
@@ -294,8 +318,15 @@ export default function App() {
       <header className="bg-[#1c1c1e] border-b border-zinc-800 p-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="font-bold text-xl tracking-tight text-zinc-100 flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#cc0000] rounded-xl flex items-center justify-center text-white">
-              <Briefcase className="w-6 h-6" />
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center">
+              <img
+                src="/logo-pug.png"
+                alt=""
+                width={52}
+                height={52}
+                className="h-[52px] w-[52px] object-contain drop-shadow-md"
+                decoding="async"
+              />
             </div>
             <span className="hidden sm:inline">Инвест-симулятор</span>
           </div>
@@ -370,9 +401,9 @@ export default function App() {
               setBalance(INITIAL_BALANCE);
               setHasSeenAnalyticsWithPortfolio(false);
             }}
-            onRefresh={refreshAll}
-            isRefreshing={isRefreshing}
-            canRefresh={Boolean(portfolioId)}
+            onRefresh={refreshPrices}
+            isRefreshing={isRefreshingPrices}
+            canRefresh={Boolean(portfolioId) && stocks.length > 0 && !isBootstrapping}
           />
         )}
         {currentView === 'analytics' && (
@@ -386,9 +417,9 @@ export default function App() {
             portfolioMetrics={portfolioMetrics}
             onSell={handleSell}
             onTradeDelta={queueTradeDelta}
-            onRefresh={refreshAll}
-            isRefreshing={isRefreshing}
-            canRefresh={Boolean(portfolioId)}
+            onRefresh={refreshPrices}
+            isRefreshing={isRefreshingPrices}
+            canRefresh={Boolean(portfolioId) && stocks.length > 0 && !isBootstrapping}
             onRiskTest={() => {
               if (riskTestAvailable) {
                 setCurrentView('risk-test');

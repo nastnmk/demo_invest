@@ -173,10 +173,10 @@ export function Analytics({
           onClick={onRefresh}
           disabled={!canRefresh || isRefreshing}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 text-sm font-medium shrink-0 self-start"
-          title="Обновить котировки и состав портфеля"
+          title="Запросить актуальные цены с биржи и обновить суммы в портфеле"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Обновить
+          Обновить цены
         </button>
       </div>
 
@@ -247,7 +247,7 @@ export function Analytics({
 
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-[#2a2a2a] rounded-3xl p-8 border border-zinc-700/50">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">
                 Ваш портфель{' '}
                 <span className="text-zinc-500 text-lg bg-zinc-800 px-3 py-1 rounded-full ml-2">
@@ -255,6 +255,9 @@ export function Analytics({
                 </span>
               </h2>
             </div>
+
+            <p className="text-zinc-300 font-medium mb-2">График показывает, как менялась стоимость вашего портфеля со временем.</p>
+            <p className="text-xs text-zinc-500 mb-4">Ось X: даты. Ось Y: стоимость портфеля в рублях.</p>
 
             <div className="h-80 w-full mb-6 bg-[#1e1e1e] rounded-xl p-4 border border-zinc-700/50">
               <ResponsiveContainer width="100%" height="100%">
@@ -296,9 +299,6 @@ export function Analytics({
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-
-            <p className="text-zinc-300 font-medium mb-2">График показывает, как менялась стоимость вашего портфеля со временем.</p>
-            <p className="text-xs text-zinc-500 mb-6">Ось X: даты. Ось Y: стоимость портфеля в рублях.</p>
 
             <div className="flex flex-wrap items-center gap-6 mb-4">
               <div className="bg-[#3a3a3a] px-4 py-2 rounded-xl flex items-center gap-3">

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { ApiError } from '../api/http';
 import { fetchAssetCandles } from '../api/moex';
+import { translateUserErrorMessage } from '../utils/apiErrorRu';
+import { dividendProfileRu } from '../utils/dividendProfileRu';
 import { Stock } from '../types';
 
 interface StockCardProps {
@@ -54,10 +57,14 @@ export function StockCard({ stock, onBuy }: StockCardProps) {
         setChartData(response.points);
         setPeriodLabel(response.periodLabel);
         setDayRange(response.dayRange);
-      } catch {
+      } catch (e) {
         if (cancelled) return;
         setChartData([]);
-        setChartError('Не удалось загрузить график с сервера');
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : translateUserErrorMessage(e instanceof Error ? e.message : 'Ошибка загрузки');
+        setChartError(msg || 'Не удалось загрузить график с сервера');
       } finally {
         if (!cancelled) {
           setIsChartLoading(false);
@@ -161,7 +168,9 @@ export function StockCard({ stock, onBuy }: StockCardProps) {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="bg-[#3a3a3a] rounded-lg px-3 py-1.5 text-sm text-zinc-300">Дивиденды:</div>
-              <span className={`text-lg font-medium ${getColorClass(stock.dividends)}`}>{stock.dividends || 'Не указано'}</span>
+              <span className={`text-lg font-medium ${getColorClass(dividendProfileRu(stock.dividends) || stock.dividends)}`}>
+                {dividendProfileRu(stock.dividends) || 'Не указано'}
+              </span>
             </div>
           </div>
         </div>

@@ -141,9 +141,9 @@ export function Login() {
       </div>
 
       <img
-        src="/moex-mascot.png"
+        src="/login-mascot.png"
         alt=""
-        className="hidden lg:block absolute right-[-120px] bottom-[-70px] w-[580px] xl:w-[700px] pointer-events-none select-none opacity-90"
+        className="hidden lg:block absolute right-[-100px] bottom-[-60px] w-[520px] xl:w-[640px] pointer-events-none select-none opacity-90"
       />
     </div>
   );
