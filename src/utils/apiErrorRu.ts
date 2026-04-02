@@ -29,6 +29,13 @@ export function httpStatusTextRu(status: number): string {
   return HTTP_STATUS_RU[status] ?? `Ошибка (${status})`;
 }
 
+/**
+ * Технические формулировки от API на русском — заменяем на нейтральные для пользователя.
+ */
+const RU_SERVICE_PHRASE_REPLACEMENTS: [RegExp, string][] = [
+  [/нет доступных записей(?:\s+в\s+(?:api|API))?\.?/gi, 'Пока нет данных']
+];
+
 /** Замены фраз (длинные и специфичные — раньше). */
 const PHRASE_REPLACEMENTS: [RegExp, string][] = [
   [/NetworkError when attempting to fetch resource\.?/gi, 'ошибка сети при обращении к серверу'],
@@ -61,12 +68,17 @@ const FULL_LINE_REPLACEMENTS: [RegExp, string][] = [
 ];
 
 /**
- * Приводит текст ошибки к русскому, если пришёл английский ответ API или браузера.
- * Строки без латинских букв считаем уже русскими и не меняем.
+ * Приводит текст ошибки к виду, удобному для пользователя: перевод с английского
+ * и замена технических русских формулировок API.
  */
 export function translateUserErrorMessage(message: string): string {
   let s = message.trim();
   if (!s) return 'Произошла ошибка.';
+  for (const [re, ru] of RU_SERVICE_PHRASE_REPLACEMENTS) {
+    s = s.replace(re, ru);
+  }
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  if (!s) return 'Пока нет данных.';
   if (!/[a-zA-Z]/.test(s)) return s;
 
   for (const [re, ru] of PHRASE_REPLACEMENTS) {

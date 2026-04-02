@@ -8,7 +8,7 @@ import {
   type ReactNode
 } from 'react';
 import { ApiError, setUnauthorizedHandler } from '../api/http';
-import { fetchCurrentUser, loginAccount, registerAccount, type AuthUser } from '../api/authApi';
+import { fetchCurrentUser, loginAccount, registerAccount, type AuthUser, type UserRole } from '../api/authApi';
 import { clearClientCaches } from '../api/moex';
 import { clearAccessToken, getAccessToken, hydrateTokenFromStorage, setAccessToken } from './token';
 
@@ -20,7 +20,7 @@ type AuthContextValue = {
   authView: 'login' | 'register';
   setAuthView: (v: 'login' | 'register') => void;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
 };
 
@@ -80,8 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me);
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await registerAccount({ name, email, password });
+  const register = useCallback(async (name: string, email: string, password: string, role: UserRole) => {
+    const res = await registerAccount({ name, email, password, role });
     setAccessToken(res.access_token);
     setAccessTokenState(res.access_token);
     const me = await fetchCurrentUser();

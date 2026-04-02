@@ -4,6 +4,8 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -39,6 +41,33 @@ interface AnalyticsProps {
 
 const PIE_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#14b8a6', '#eab308', '#f97316'];
 
+const FUTURE_MONTHS = 30;
+
+/** Упрощённый прогноз: три сценария от текущего капитала (не инвестиционная рекомендация). */
+function computeFutureProjection(
+  equityRub: number,
+  sharpe: number
+): { month: number; min: number; avg: number; max: number }[] {
+  const P0 = Math.max(equityRub, 1);
+  const s = Number.isFinite(sharpe) ? Math.max(0.2, Math.min(2.5, sharpe)) : 0.85;
+  const rAvg = 0.0075 * (0.72 + s * 0.28);
+  const rMax = rAvg * 1.52;
+  const rMin = rAvg * 0.58;
+  const out: { month: number; min: number; avg: number; max: number }[] = [];
+  for (let m = 0; m <= FUTURE_MONTHS; m++) {
+    const maxV = P0 * (1 + rMax) ** m;
+    const avgV = P0 * (1 + rAvg) ** m;
+    const dip = m <= 6 ? 1 - 0.055 * Math.sin((m / 6) * (Math.PI / 2)) : 1;
+    const minV = P0 * dip * (1 + rMin) ** m;
+    out.push({ month: m, min: minV, avg: avgV, max: maxV });
+  }
+  return out;
+}
+
+function formatRubCompact(n: number): string {
+  return `${Math.round(n).toLocaleString('ru-RU')} ₽`;
+}
+
 export function Analytics({
   portfolio,
   balance,
@@ -56,6 +85,7 @@ export function Analytics({
 }: AnalyticsProps) {
   const [showSectorChart, setShowSectorChart] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
+  const [futurePrediction, setFuturePrediction] = useState(false);
 
   useEffect(() => {
     try {
@@ -109,6 +139,19 @@ export function Analytics({
     if (volatility === 0) return 0;
     return (avg / volatility) * Math.sqrt(252);
   }, [chartData, portfolioMetrics]);
+
+  const projectionSeries = useMemo(() => computeFutureProjection(totalEquity, sharpe), [totalEquity, sharpe]);
+
+  const projectionEnd = projectionSeries[projectionSeries.length - 1];
+  const projectionLegend = useMemo(() => {
+    if (!projectionEnd) return null;
+    const start = totalEquity;
+    return {
+      max: { label: 'Макс. доход', total: projectionEnd.max, gain: projectionEnd.max - start, color: '#22c55e' },
+      avg: { label: 'Сред. доход', total: projectionEnd.avg, gain: projectionEnd.avg - start, color: '#f4f4f5' },
+      min: { label: 'Мин. доход', total: projectionEnd.min, gain: projectionEnd.min - start, color: '#ef4444' }
+    };
+  }, [projectionEnd, totalEquity]);
 
   const sharpeStatus = sharpe >= 1.2 ? 'Сбалансированный' : sharpe >= 0.7 ? 'Умеренный' : 'Рискованный';
 
@@ -256,49 +299,172 @@ export function Analytics({
               </h2>
             </div>
 
-            <p className="text-zinc-300 font-medium mb-2">График показывает, как менялась стоимость вашего портфеля со временем.</p>
-            <p className="text-xs text-zinc-500 mb-4">Ось X: даты. Ось Y: стоимость портфеля в рублях.</p>
+            <p className="text-zinc-300 font-medium mb-2">
+              {futurePrediction
+                ? 'Прогноз капитала на 30 месяцев вперёд в трёх сценариях (лучший, средний, худший).'
+                : 'График показывает, как менялась стоимость вашего портфеля со временем.'}
+            </p>
+            <p className="text-xs text-zinc-500 mb-4">
+              {futurePrediction
+                ? 'Ось X: месяцы (0–30). Ось Y: сумма капитала, ₽. Модель упрощённая, не является рекомендацией.'
+                : 'Ось X: даты. Ось Y: стоимость портфеля в рублях.'}
+            </p>
 
-            <div className="h-80 w-full mb-6 bg-[#1e1e1e] rounded-xl p-4 border border-zinc-700/50">
+            <div className="h-80 w-full mb-4 bg-[#1e1e1e] rounded-xl p-4 border border-zinc-700/50">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#666"
-                    tick={{ fill: '#888', fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={18}
-                    tickMargin={8}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    stroke="#666"
-                    tick={{ fill: '#888', fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={58}
-                    tickFormatter={val => `${(Number(val) / 1000).toFixed(0)}K`}
-                    domain={['auto', 'auto']}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#2a2a2a', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff' }}
-                    itemStyle={{ color: '#60a5fa' }}
-                    labelStyle={{ color: '#a1a1aa' }}
-                    formatter={(value: number) => [`${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`, 'Стоимость']}
-                    labelFormatter={label => `Дата: ${label}`}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                </AreaChart>
+                {futurePrediction ? (
+                  <LineChart data={projectionSeries} margin={{ top: 10, right: 16, left: 4, bottom: 28 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis
+                      dataKey="month"
+                      type="number"
+                      domain={[0, FUTURE_MONTHS]}
+                      ticks={[0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30]}
+                      stroke="#666"
+                      tick={{ fill: '#888', fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{ value: 'Месяцы', position: 'insideBottom', offset: -2, fill: '#71717a', fontSize: 11 }}
+                    />
+                    <YAxis
+                      stroke="#666"
+                      tick={{ fill: '#888', fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={64}
+                      tickFormatter={val => `${Math.round(Number(val) / 1000)}k`}
+                      domain={['auto', 'auto']}
+                      label={{
+                        value: 'Сумма капитала, ₽',
+                        angle: -90,
+                        position: 'insideLeft',
+                        fill: '#71717a',
+                        fontSize: 11,
+                        style: { textAnchor: 'middle' }
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#2a2a2a', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff' }}
+                      formatter={(value: number, name: string) => {
+                        const label =
+                          name === 'max' ? 'Макс.' : name === 'avg' ? 'Сред.' : name === 'min' ? 'Мин.' : name;
+                        return [`${value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`, label];
+                      }}
+                      labelFormatter={m => `Месяц ${m}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="max"
+                      name="max"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      dot={{ r: 2.5, fill: '#22c55e' }}
+                      activeDot={{ r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="avg"
+                      name="avg"
+                      stroke="#f4f4f5"
+                      strokeWidth={2}
+                      dot={{ r: 2.5, fill: '#f4f4f5' }}
+                      activeDot={{ r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="min"
+                      name="min"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={{ r: 2.5, fill: '#ef4444' }}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                ) : (
+                  <AreaChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#666"
+                      tick={{ fill: '#888', fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={18}
+                      tickMargin={8}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      stroke="#666"
+                      tick={{ fill: '#888', fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={58}
+                      tickFormatter={val => `${(Number(val) / 1000).toFixed(0)}K`}
+                      domain={['auto', 'auto']}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#2a2a2a', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff' }}
+                      itemStyle={{ color: '#60a5fa' }}
+                      labelStyle={{ color: '#a1a1aa' }}
+                      formatter={(value: number) => [`${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`, 'Стоимость']}
+                      labelFormatter={label => `Дата: ${label}`}
+                    />
+                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                  </AreaChart>
+                )}
               </ResponsiveContainer>
             </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 pb-6 border-b border-zinc-700/40">
+              <span className="text-sm text-zinc-400">Предсказание будущего</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={futurePrediction}
+                aria-label="Показать прогноз капитала на 30 месяцев"
+                onClick={() => setFuturePrediction(v => !v)}
+                className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 ${
+                  futurePrediction ? 'bg-[#b40000]' : 'bg-zinc-600'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                    futurePrediction ? 'translate-x-[26px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {futurePrediction && projectionLegend && (
+              <div className="space-y-3 mb-8">
+                {([projectionLegend.max, projectionLegend.avg, projectionLegend.min] as const).map(row => (
+                  <div
+                    key={row.label}
+                    className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm border-b border-zinc-700/30 pb-3 last:border-0 last:pb-0"
+                  >
+                    <span className="inline-flex items-center gap-2 min-w-[120px]">
+                      <span className="inline-block w-6 h-0.5 rounded-full" style={{ backgroundColor: row.color }} />
+                      <span className="text-zinc-400">{row.label}</span>
+                    </span>
+                    <span className="font-bold text-zinc-100 tabular-nums">{formatRubCompact(row.total)}</span>
+                    <span
+                      className={`font-medium tabular-nums ${
+                        row.gain >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {row.gain >= 0 ? '+' : ''}
+                      {Math.round(row.gain).toLocaleString('ru-RU')} ₽
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-6 mb-4">
               <div className="bg-[#3a3a3a] px-4 py-2 rounded-xl flex items-center gap-3">

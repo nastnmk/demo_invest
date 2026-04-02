@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import type { UserRole } from '../api/authApi';
 import { ApiError } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 
@@ -7,6 +8,7 @@ export function Login() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<UserRole>('student');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +18,7 @@ export function Login() {
     setSubmitting(true);
     try {
       if (authView === 'register') {
-        await register(name.trim(), email.trim(), password);
+        await register(name.trim(), email.trim(), password, role);
       } else {
         await login(email.trim(), password);
       }
@@ -59,18 +61,47 @@ export function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {authView === 'register' && (
-            <div>
-              <label className="block text-sm text-zinc-400 mb-1">Имя</label>
-              <input
-                type="text"
-                autoComplete="name"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                placeholder="Ваше имя"
-                className="w-full bg-zinc-300 border border-zinc-400 rounded-2xl px-5 py-4 text-zinc-800 placeholder-zinc-500 text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/40 transition-colors"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Имя</label>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                  placeholder="Ваше имя"
+                  className="w-full bg-zinc-300 border border-zinc-400 rounded-2xl px-5 py-4 text-zinc-800 placeholder-zinc-500 text-base focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/40 transition-colors"
+                />
+              </div>
+              <div>
+                <span className="block text-sm text-zinc-400 mb-2">Выберите роль</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRole('student')}
+                    className={`rounded-2xl px-4 py-3.5 text-base font-semibold transition-colors border-2 ${
+                      role === 'student'
+                        ? 'bg-red-900/50 border-red-500 text-white'
+                        : 'bg-zinc-300 border-zinc-400 text-zinc-700 hover:border-zinc-300'
+                    }`}
+                  >
+                    Ученик
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRole('teacher')}
+                    className={`rounded-2xl px-4 py-3.5 text-base font-semibold transition-colors border-2 ${
+                      role === 'teacher'
+                        ? 'bg-red-900/50 border-red-500 text-white'
+                        : 'bg-zinc-300 border-zinc-400 text-zinc-700 hover:border-zinc-300'
+                    }`}
+                  >
+                    Учитель
+                  </button>
+                </div>
+              </div>
+            </>
           )}
           <div>
             <label className="block text-sm text-zinc-400 mb-1">Email</label>
@@ -107,6 +138,7 @@ export function Login() {
                   onClick={() => {
                     setAuthView('login');
                     setError(null);
+                    setRole('student');
                   }}
                   className="text-zinc-200 hover:text-white font-medium transition-colors"
                 >
@@ -121,6 +153,7 @@ export function Login() {
                   onClick={() => {
                     setAuthView('register');
                     setError(null);
+                    setRole('student');
                   }}
                   className="text-zinc-200 hover:text-white font-medium transition-colors"
                 >
