@@ -543,7 +543,7 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
                     <th className="py-4 px-4">Вложено</th>
                     <th className="py-4 px-4">Результат</th>
                     <th className="py-4 px-4">Изм.</th>
-                    <th className="py-4 px-4 whitespace-nowrap">1 лот, ₽</th>
+                    <th className="py-4 px-4 whitespace-nowrap">Изм. всего, ₽</th>
                     <th className="py-4 px-4">Статус</th>
                     <th className="py-4 px-4">Пояснение</th>
                     <th className="py-4 px-4" />
@@ -551,7 +551,7 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
                 </thead>
                 <tbody className="text-sm">
                   {impacts.map(item => {
-                    const deltaLot = priceDeltaPerLot(item);
+                    const deltaPerLot = priceDeltaPerLot(item);
                     return (
                       <React.Fragment key={item.secid}>
                         <tr
@@ -570,9 +570,9 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
                             {item.scenario_change_pct > 0 ? '+' : ''}
                             {item.scenario_change_pct.toFixed(2)}%
                           </td>
-                          <td className={`py-4 px-4 font-mono ${deltaLot >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            {deltaLot >= 0 ? '+' : ''}
-                            {fmtMoney(deltaLot, 2)} ₽
+                          <td className={`py-4 px-4 font-mono ${item.change_abs >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {item.change_abs >= 0 ? '+' : ''}
+                            {fmtMoney(item.change_abs, 2)} ₽
                           </td>
                           <td className="py-4 px-4">
                             <span
@@ -611,18 +611,18 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
                                     <dd className="font-mono text-zinc-100">
                                       {item.quantity.toLocaleString('ru-RU')} шт.
                                     </dd>
-                                    <dt className="text-zinc-500">Цена сейчас</dt>
+                                    <dt className="text-zinc-500">Цена в начале</dt>
                                     <dd className="font-mono text-zinc-100">{fmtMoney(item.current_price, 2)} ₽</dd>
-                                    <dt className="text-zinc-500">Цена после</dt>
+                                    <dt className="text-zinc-500">Цена в конце</dt>
                                     <dd className="font-mono text-zinc-100">{fmtMoney(item.stressed_price, 2)} ₽</dd>
-                                    <dt className="text-zinc-500">Изм. позиции</dt>
+                                    <dt className="text-zinc-500">Изм. позиции (1 лот)</dt>
                                     <dd
                                       className={`font-mono ${
-                                        item.change_abs >= 0 ? 'text-green-400' : 'text-red-400'
+                                        deltaPerLot >= 0 ? 'text-green-400' : 'text-red-400'
                                       }`}
                                     >
-                                      {item.change_abs >= 0 ? '+' : ''}
-                                      {fmtMoney(item.change_abs, 2)} ₽
+                                      {deltaPerLot >= 0 ? '+' : ''}
+                                      {fmtMoney(deltaPerLot, 2)} ₽
                                     </dd>
                                   </dl>
                                   {item.explanation ? (

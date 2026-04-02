@@ -110,7 +110,7 @@ export function Dashboard({
             ))}
             {stocks.length === 0 && (
               <div className="md:col-span-2 bg-[#2a2a2a] border border-zinc-700/50 rounded-2xl p-6 text-zinc-300">
-                Нет доступных компаний из API.
+                Сейчас нет доступных компаний для отображения.
                 <br />
                 Показываем только те активы, у которых есть описание компании и рыночные данные.
               </div>
@@ -118,17 +118,26 @@ export function Dashboard({
           </div>
         </div>
 
-        <div className="lg:col-span-1 h-[calc(100vh-200px)] sticky top-24">
-          <PortfolioSidebar
-            portfolio={portfolio}
-            balance={balance}
-            maxPositions={maxPositions}
-            initialBalance={initialBalance}
-            onTradeDelta={onTradeDelta}
-            onSell={onSell}
-            onRiskTest={onRiskTest}
-            onReset={onReset}
-          />
+        <div className="lg:col-span-1 h-[calc(100vh-200px)] sticky top-24 flex flex-col gap-2">
+          <div className="flex-1 min-h-0">
+            <PortfolioSidebar
+              portfolio={portfolio}
+              balance={balance}
+              maxPositions={maxPositions}
+              initialBalance={initialBalance}
+              onTradeDelta={onTradeDelta}
+              onSell={onSell}
+              onRiskTest={onRiskTest}
+              onReset={onReset}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onReset}
+            className="shrink-0 text-center text-xs sm:text-sm text-red-600 hover:text-red-500 font-medium py-1 transition-colors"
+          >
+            Начать заново
+          </button>
         </div>
       </div>
     </div>

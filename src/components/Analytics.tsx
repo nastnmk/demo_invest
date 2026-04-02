@@ -83,7 +83,6 @@ export function Analytics({
   isRefreshing,
   canRefresh
 }: AnalyticsProps) {
-  const [showSectorChart, setShowSectorChart] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [futurePrediction, setFuturePrediction] = useState(false);
 
@@ -478,57 +477,53 @@ export function Analytics({
                 </span>
               </div>
             </div>
-            <div className="mb-8">
-              <button
-                onClick={() => setShowSectorChart(prev => !prev)}
-                className="-mt-1 text-zinc-400 hover:text-zinc-200 text-sm font-medium transition-colors"
-              >
-                {showSectorChart ? 'Скрыть распределение' : 'Посмотреть распределение'}
-              </button>
-
-              {showSectorChart && (
-                <div className="mt-3 bg-[#1f1f22] rounded-lg border border-zinc-700/40 p-3 max-w-[520px]">
-                  {sectorDistribution.length > 0 ? (
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="h-40 w-full sm:w-52 shrink-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={sectorDistribution}
-                              dataKey="value"
-                              nameKey="name"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={56}
-                              label={false}
-                            >
-                              {sectorDistribution.map((entry, index) => (
-                                <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => `${value.toLocaleString('ru-RU')} ₽`} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="space-y-1 text-sm text-zinc-300">
-                        {sectorDistribution.slice(0, 5).map((item, index) => (
-                          <div key={item.name} className="flex items-center gap-2">
-                            <span
-                              className="inline-block w-2.5 h-2.5 rounded-full"
-                              style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
-                            />
-                            <span className="text-zinc-200">{item.name}</span>
-                            <span className="text-zinc-500">— {item.percent}%</span>
-                          </div>
-                        ))}
-                      </div>
+            <details className="mb-8 group/sectors">
+              <summary className="-mt-1 text-zinc-400 hover:text-zinc-200 text-sm font-medium transition-colors cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+                <span>Распределение по секторам</span>
+                <span className="text-zinc-600 text-xs group-open/sectors:hidden">▼</span>
+                <span className="text-zinc-600 text-xs hidden group-open/sectors:inline">▲</span>
+              </summary>
+              <div className="mt-3 bg-[#1f1f22] rounded-lg border border-zinc-700/40 p-3 max-w-[520px]">
+                {sectorDistribution.length > 0 ? (
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                    <div className="h-40 w-full sm:w-52 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={sectorDistribution}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={56}
+                            label={false}
+                          >
+                            {sectorDistribution.map((entry, index) => (
+                              <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => `${value.toLocaleString('ru-RU')} ₽`} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ) : (
-                    <div className="text-zinc-400 text-sm">Добавьте активы в портфель, чтобы увидеть распределение по секторам.</div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <div className="space-y-1 text-sm text-zinc-300 min-w-0 flex-1">
+                      {sectorDistribution.map((item, index) => (
+                        <div key={item.name} className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                          />
+                          <span className="text-zinc-200">{item.name}</span>
+                          <span className="text-zinc-500">— {item.percent}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-zinc-400 text-sm">Добавьте активы в портфель, чтобы увидеть распределение по секторам.</div>
+                )}
+              </div>
+            </details>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
               <button

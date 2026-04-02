@@ -9,6 +9,7 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('student');
+  const [teacherCodeRegister, setTeacherCodeRegister] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -18,7 +19,13 @@ export function Login() {
     setSubmitting(true);
     try {
       if (authView === 'register') {
-        await register(name.trim(), email.trim(), password, role);
+        await register(
+          name.trim(),
+          email.trim(),
+          password,
+          role,
+          role === 'student' ? teacherCodeRegister.trim() || undefined : undefined
+        );
       } else {
         await login(email.trim(), password);
       }
@@ -101,6 +108,20 @@ export function Login() {
                   </button>
                 </div>
               </div>
+              {role === 'student' && (
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Код учителя (необязательно)</label>
+                  <input
+                    type="text"
+                    value={teacherCodeRegister}
+                    onChange={e => setTeacherCodeRegister(e.target.value.toUpperCase())}
+                    placeholder="Например AB12CD"
+                    autoComplete="off"
+                    className="w-full bg-zinc-300 border border-zinc-400 rounded-2xl px-5 py-4 text-zinc-800 placeholder-zinc-500 text-base font-mono tracking-wider focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/40 transition-colors"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1.5">Можно указать сразу или присоединиться позже в разделе «Сообщество».</p>
+                </div>
+              )}
             </>
           )}
           <div>
@@ -139,6 +160,7 @@ export function Login() {
                     setAuthView('login');
                     setError(null);
                     setRole('student');
+                    setTeacherCodeRegister('');
                   }}
                   className="text-zinc-200 hover:text-white font-medium transition-colors"
                 >
@@ -154,6 +176,7 @@ export function Login() {
                     setAuthView('register');
                     setError(null);
                     setRole('student');
+                    setTeacherCodeRegister('');
                   }}
                   className="text-zinc-200 hover:text-white font-medium transition-colors"
                 >

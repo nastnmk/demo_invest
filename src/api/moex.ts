@@ -456,7 +456,7 @@ export async function listPortfolios(): Promise<PortfolioRead[]> {
 }
 
 export async function createPortfolio(initialCash: number): Promise<PortfolioRead> {
-  const title = `Портфель ${new Date().toLocaleString('ru-RU')}`;
+  const title = `Портфель ${new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`;
   return apiRequest<PortfolioRead>('/api/v1/portfolios', {
     method: 'POST',
     body: JSON.stringify({

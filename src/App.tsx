@@ -102,7 +102,7 @@ export default function App() {
       } catch (e) {
         console.error(e);
         portfolioBootRef.current = false;
-        if (!cancelled) setApiError('Не удалось загрузить данные. Проверьте API и авторизацию.');
+        if (!cancelled) setApiError('Не удалось загрузить данные. Проверьте соединение и вход в аккаунт.');
       } finally {
         if (!cancelled) setIsBootstrapping(false);
       }
@@ -318,17 +318,7 @@ export default function App() {
       <header className="bg-[#1c1c1e] border-b border-zinc-800 p-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="font-bold text-xl tracking-tight text-zinc-100 flex items-center gap-3">
-            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center">
-              <img
-                src="/logo-pug.png"
-                alt=""
-                width={52}
-                height={52}
-                className="h-[52px] w-[52px] object-contain drop-shadow-md"
-                decoding="async"
-              />
-            </div>
-            <span className="hidden sm:inline">Инвест-симулятор</span>
+            <span>Инвест-симулятор</span>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
