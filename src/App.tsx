@@ -317,8 +317,17 @@ export default function App() {
     <div className="min-h-screen bg-[#121212] text-zinc-50 font-sans selection:bg-red-500/30 selection:text-red-200">
       <header className="bg-[#1c1c1e] border-b border-zinc-800 p-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="font-bold text-xl tracking-tight text-zinc-100 flex items-center gap-3">
-            <span>Инвест-симулятор</span>
+          <div className="font-bold text-xl tracking-tight text-zinc-100 flex items-center gap-3 min-w-0">
+            <img
+              src="/logo-pug.png"
+              width={40}
+              height={40}
+              alt=""
+              aria-hidden
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-contain shrink-0 ring-1 ring-zinc-700/70 bg-zinc-900/60"
+              decoding="async"
+            />
+            <span className="truncate">Инвест-симулятор</span>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
@@ -398,6 +407,7 @@ export default function App() {
         )}
         {currentView === 'analytics' && (
           <Analytics
+            portfolioId={portfolioId}
             portfolio={portfolio}
             balance={balance}
             initialBalance={INITIAL_BALANCE}

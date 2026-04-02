@@ -11,6 +11,7 @@ import {
   type SetStateAction
 } from 'react';
 import {
+  Activity,
   Briefcase,
   Copy,
   Layers,
@@ -250,6 +251,7 @@ function ClassmateCard({
   email,
   capital,
   profitability,
+  sharpeAvg,
   portfolioType,
   sectors,
   holdings,
@@ -260,6 +262,7 @@ function ClassmateCard({
   email: string;
   capital: number;
   profitability: number;
+  sharpeAvg: number | null;
   portfolioType: PortfolioStyleLabel;
   sectors: string[];
   holdings: ClassroomHoldingLine[];
@@ -316,6 +319,16 @@ function ClassmateCard({
           </div>
           <div className="text-lg font-mono font-bold text-zinc-100 tabular-nums">
             {capital.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-2 text-zinc-400 text-xs uppercase tracking-wider font-bold">
+            <Activity size={14} className="text-red-500 shrink-0" />
+            Коэф. Шарпа
+          </div>
+          <div className="text-lg font-mono font-bold text-zinc-100 tabular-nums">
+            {sharpeAvg != null && !Number.isNaN(sharpeAvg) ? sharpeAvg.toFixed(2) : '—'}
           </div>
         </div>
 
@@ -507,6 +520,7 @@ function TeacherDashboard({
                     email={row.student.email}
                     capital={agg.capital}
                     profitability={agg.profitability}
+                    sharpeAvg={agg.sharpeAvg}
                     portfolioType={agg.portfolioType}
                     sectors={agg.sectors}
                     holdings={holdingsByStudentId[row.student.id] ?? []}
@@ -705,6 +719,7 @@ function StudentCompareView({
                   email={row.student.email}
                   capital={agg.capital}
                   profitability={agg.profitability}
+                  sharpeAvg={agg.sharpeAvg}
                   portfolioType={agg.portfolioType}
                   sectors={agg.sectors}
                   holdings={holdingsByStudentId[row.student.id] ?? []}

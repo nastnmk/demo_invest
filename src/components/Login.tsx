@@ -48,6 +48,14 @@ export function Login() {
       </div>
 
       <div className="z-10 flex flex-col items-center mb-8">
+        <img
+          src="/logo-pug.png"
+          width={112}
+          height={112}
+          alt="Логотип симулятора"
+          className="h-20 w-20 md:h-28 md:w-28 mb-5 rounded-3xl object-contain ring-2 ring-zinc-700/60 bg-zinc-900/50 shadow-lg"
+          decoding="async"
+        />
         <h1 className="text-4xl md:text-7xl font-black tracking-tight text-center uppercase">СИМУЛЯТОР ИНВЕСТИЦИЙ</h1>
         <p className="text-zinc-300 mt-3 text-center text-lg md:text-xl max-w-2xl font-medium">
           Это твой надежный помощник в обучении инвестициям!

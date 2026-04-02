@@ -47,3 +47,23 @@ export function PortfolioIntroContent() {
     </>
   );
 }
+
+export function ForecastIntroContent() {
+  return (
+    <>
+      <p>
+        Наш прогноз — это не предсказание, а математическая модель. Мы анализируем тысячи возможных сценариев развития
+        ваших инвестиций, чтобы показать наиболее вероятный результат.
+      </p>
+      <ul className="list-disc space-y-2 pl-5 text-zinc-300 marker:text-zinc-500">
+        <li>
+          <strong className="text-zinc-100">Белая линия</strong> — это средний, наиболее вероятный сценарий.
+        </li>
+        <li>
+          <strong className="text-zinc-100">Зелёная и красная линии</strong> показывают вероятный коридор, в котором может
+          оказаться ваш капитал.
+        </li>
+      </ul>
+    </>
+  );
+}

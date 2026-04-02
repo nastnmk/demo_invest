@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { HelpCircle, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, HelpCircle, Loader2, RefreshCw } from 'lucide-react';
 import {
   Area,
   AreaChart,
@@ -15,15 +15,20 @@ import {
   Cell
 } from 'recharts';
 import type { PortfolioAnalyticsHistoryPoint, PortfolioMetrics } from '../api/moex';
+import {
+  getPortfolioForecast,
+  type PortfolioForecastResponse
+} from '../api/portfolioForecast';
 import { PortfolioItem, Stock } from '../types';
 import { InvestmentGoals } from './InvestmentGoals';
 import { PortfolioPositionRow } from './PortfolioPositionRow';
 import { IntroModal } from './IntroModal';
-import { PortfolioIntroContent } from '../intro/introContents';
-import { LS_INTRO_PORTFOLIO } from '../intro/storageKeys';
+import { ForecastIntroContent, PortfolioIntroContent } from '../intro/introContents';
+import { LS_FORECAST_INTRO, LS_INTRO_PORTFOLIO } from '../intro/storageKeys';
 import { sectorLabelRu } from '../utils/sectorLabels';
 
 interface AnalyticsProps {
+  portfolioId: number | null;
   portfolio: PortfolioItem[];
   balance: number;
   initialBalance: number;
@@ -42,6 +47,31 @@ interface AnalyticsProps {
 const PIE_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#14b8a6', '#eab308', '#f97316'];
 
 const FUTURE_MONTHS = 30;
+
+/** Слияние траекторий backend-прогноза для LineChart (avg / best / worst). */
+function buildForecastChartRows(f: PortfolioForecastResponse): Array<{
+  month: number;
+  label: string;
+  avg: number;
+  max: number;
+  min: number;
+}> {
+  const a = f.average_case.trajectory;
+  const b = f.best_case.trajectory;
+  const w = f.worst_case.trajectory;
+  const n = Math.min(a.length, b.length, w.length);
+  const rows: Array<{ month: number; label: string; avg: number; max: number; min: number }> = [];
+  for (let i = 0; i < n; i++) {
+    rows.push({
+      month: a[i].month_index,
+      label: a[i].label,
+      avg: a[i].projected_value,
+      max: b[i].projected_value,
+      min: w[i].projected_value
+    });
+  }
+  return rows;
+}
 
 /** Упрощённый прогноз: три сценария от текущего капитала (не инвестиционная рекомендация). */
 function computeFutureProjection(
@@ -69,6 +99,7 @@ function formatRubCompact(n: number): string {
 }
 
 export function Analytics({
+  portfolioId,
   portfolio,
   balance,
   initialBalance,
@@ -84,7 +115,23 @@ export function Analytics({
   canRefresh
 }: AnalyticsProps) {
   const [showIntro, setShowIntro] = useState(false);
+  const [showForecastIntro, setShowForecastIntro] = useState(false);
   const [futurePrediction, setFuturePrediction] = useState(false);
+  const [forecast, setForecast] = useState<PortfolioForecastResponse | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+  const forecastCacheRef = useRef<Map<number, PortfolioForecastResponse>>(new Map());
+
+  useEffect(() => {
+    if (!portfolioId) {
+      setForecast(null);
+      setForecastError(null);
+      return;
+    }
+    const cached = forecastCacheRef.current.get(portfolioId);
+    setForecast(cached ?? null);
+    setForecastError(null);
+  }, [portfolioId]);
 
   useEffect(() => {
     try {
@@ -104,6 +151,29 @@ export function Analytics({
     }
     setShowIntro(false);
   };
+
+  const dismissForecastIntro = () => {
+    try {
+      localStorage.setItem(LS_FORECAST_INTRO, '1');
+    } catch {
+      /* ignore */
+    }
+    setShowForecastIntro(false);
+  };
+
+  useEffect(() => {
+    if (!futurePrediction) {
+      setShowForecastIntro(false);
+      return;
+    }
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(LS_FORECAST_INTRO) !== '1') {
+        setShowForecastIntro(true);
+      }
+    } catch {
+      setShowForecastIntro(true);
+    }
+  }, [futurePrediction]);
 
   const totalPortfolioValue = portfolio.reduce((sum, item) => sum + item.stock.price * item.quantity, 0);
   const totalEquity = balance + totalPortfolioValue;
@@ -145,12 +215,108 @@ export function Analytics({
   const projectionLegend = useMemo(() => {
     if (!projectionEnd) return null;
     const start = totalEquity;
+    const pctOf = (v: number) => (start > 0 ? ((v - start) / start) * 100 : 0);
     return {
-      max: { label: 'Макс. доход', total: projectionEnd.max, gain: projectionEnd.max - start, color: '#22c55e' },
-      avg: { label: 'Сред. доход', total: projectionEnd.avg, gain: projectionEnd.avg - start, color: '#f4f4f5' },
-      min: { label: 'Мин. доход', total: projectionEnd.min, gain: projectionEnd.min - start, color: '#ef4444' }
+      max: {
+        label: 'Макс. доход',
+        total: projectionEnd.max,
+        gain: projectionEnd.max - start,
+        color: '#22c55e',
+        pct: pctOf(projectionEnd.max)
+      },
+      avg: {
+        label: 'Сред. доход',
+        total: projectionEnd.avg,
+        gain: projectionEnd.avg - start,
+        color: '#f4f4f5',
+        pct: pctOf(projectionEnd.avg)
+      },
+      min: {
+        label: 'Мин. доход',
+        total: projectionEnd.min,
+        gain: projectionEnd.min - start,
+        color: '#ef4444',
+        pct: pctOf(projectionEnd.min)
+      }
     };
   }, [projectionEnd, totalEquity]);
+
+  const loadForecastRemote = useCallback(
+    async (force: boolean) => {
+      if (!portfolioId || portfolio.length === 0) return;
+      if (!force) {
+        const cached = forecastCacheRef.current.get(portfolioId);
+        if (cached) {
+          setForecast(cached);
+          setForecastError(null);
+          setForecastLoading(false);
+          return;
+        }
+      }
+      setForecastLoading(true);
+      setForecastError(null);
+      try {
+        const data = await getPortfolioForecast(portfolioId);
+        forecastCacheRef.current.set(portfolioId, data);
+        setForecast(data);
+      } catch (e) {
+        setForecast(null);
+        setForecastError(e instanceof Error ? e.message : 'Не удалось загрузить прогноз.');
+      } finally {
+        setForecastLoading(false);
+      }
+    },
+    [portfolioId, portfolio.length]
+  );
+
+  useEffect(() => {
+    if (!futurePrediction || !portfolioId || portfolio.length === 0) {
+      return;
+    }
+    void loadForecastRemote(false);
+  }, [futurePrediction, portfolioId, portfolio.length, loadForecastRemote]);
+
+  const futureChartData = useMemo(() => {
+    if (forecast) return buildForecastChartRows(forecast);
+    return projectionSeries.map(r => ({
+      ...r,
+      label: r.month === 0 ? 'Сейчас' : `${r.month} мес.`
+    }));
+  }, [forecast, projectionSeries]);
+
+  const monthTicks = useMemo(() => futureChartData.map(r => r.month), [futureChartData]);
+
+  const futureMonthsMax = forecast?.forecast_months ?? FUTURE_MONTHS;
+
+  const apiLegend = useMemo(() => {
+    if (!forecast) return null;
+    const start = totalEquity;
+    return {
+      max: {
+        label: 'Лучший сценарий',
+        total: forecast.best_case.final_value,
+        gain: forecast.best_case.final_value - start,
+        color: '#22c55e',
+        pct: forecast.best_case.total_return_pct
+      },
+      avg: {
+        label: 'Средний сценарий',
+        total: forecast.average_case.final_value,
+        gain: forecast.average_case.final_value - start,
+        color: '#f4f4f5',
+        pct: forecast.average_case.total_return_pct
+      },
+      min: {
+        label: 'Худший сценарий',
+        total: forecast.worst_case.final_value,
+        gain: forecast.worst_case.final_value - start,
+        color: '#ef4444',
+        pct: forecast.worst_case.total_return_pct
+      }
+    };
+  }, [forecast, totalEquity]);
+
+  const activeLegend = apiLegend ?? projectionLegend;
 
   const sharpeStatus = sharpe >= 1.2 ? 'Сбалансированный' : sharpe >= 0.7 ? 'Умеренный' : 'Рискованный';
 
@@ -192,6 +358,10 @@ export function Analytics({
     <div className="max-w-7xl mx-auto p-6">
       <IntroModal open={showIntro} title="Раздел «Портфель»" onDismiss={dismissIntro}>
         <PortfolioIntroContent />
+      </IntroModal>
+
+      <IntroModal open={showForecastIntro} title="Как работает наш прогноз?" onDismiss={dismissForecastIntro}>
+        <ForecastIntroContent />
       </IntroModal>
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -298,88 +468,167 @@ export function Analytics({
               </h2>
             </div>
 
-            <p className="text-zinc-300 font-medium mb-2">
+            <p
+              className={`text-zinc-300 font-medium ${futurePrediction && forecast ? 'mb-4' : 'mb-2'}`}
+            >
               {futurePrediction
-                ? 'Прогноз капитала на 30 месяцев вперёд в трёх сценариях (лучший, средний, худший).'
+                ? forecast
+                  ? `Прогноз стоимости портфеля на ${forecast.forecast_months} мес. Не является инвестиционной рекомендацией.`
+                  : 'Прогноз капитала в трёх сценариях. Если сервер недоступен — показывается упрощённая локальная модель.'
                 : 'График показывает, как менялась стоимость вашего портфеля со временем.'}
             </p>
-            <p className="text-xs text-zinc-500 mb-4">
-              {futurePrediction
-                ? 'Ось X: месяцы (0–30). Ось Y: сумма капитала, ₽. Модель упрощённая, не является рекомендацией.'
-                : 'Ось X: даты. Ось Y: стоимость портфеля в рублях.'}
-            </p>
+            {!(futurePrediction && forecast) && (
+              <p className="text-xs text-zinc-500 mb-4">
+                {futurePrediction
+                  ? 'Ось X: месяцы. Ось Y: сумма капитала, ₽. Упрощённая модель по Шарпу — только при отсутствии ответа сервера.'
+                  : 'Ось X: даты. Ось Y: стоимость портфеля в рублях.'}
+              </p>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-4 border-b border-zinc-700/40">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-zinc-400">Предсказание будущего</span>
+                <button
+                  type="button"
+                  onClick={() => setShowForecastIntro(true)}
+                  className="rounded-full p-1 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80 transition-colors shrink-0"
+                  title="Как работает прогноз?"
+                  aria-label="Как работает прогноз?"
+                >
+                  <HelpCircle className="w-4 h-4" strokeWidth={2} />
+                </button>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={futurePrediction}
+                aria-label="Показать прогноз капитала на несколько месяцев вперёд"
+                onClick={() => setFuturePrediction(v => !v)}
+                className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 ${
+                  futurePrediction ? 'bg-[#b40000]' : 'bg-zinc-600'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                    futurePrediction ? 'translate-x-[26px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
 
             <div className="h-80 w-full mb-4 bg-[#1e1e1e] rounded-xl p-4 border border-zinc-700/50">
-              <ResponsiveContainer width="100%" height="100%">
-                {futurePrediction ? (
-                  <LineChart data={projectionSeries} margin={{ top: 10, right: 16, left: 4, bottom: 28 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis
-                      dataKey="month"
-                      type="number"
-                      domain={[0, FUTURE_MONTHS]}
-                      ticks={[0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30]}
-                      stroke="#666"
-                      tick={{ fill: '#888', fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      label={{ value: 'Месяцы', position: 'insideBottom', offset: -2, fill: '#71717a', fontSize: 11 }}
-                    />
-                    <YAxis
-                      stroke="#666"
-                      tick={{ fill: '#888', fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={64}
-                      tickFormatter={val => `${Math.round(Number(val) / 1000)}k`}
-                      domain={['auto', 'auto']}
-                      label={{
-                        value: 'Сумма капитала, ₽',
-                        angle: -90,
-                        position: 'insideLeft',
-                        fill: '#71717a',
-                        fontSize: 11,
-                        style: { textAnchor: 'middle' }
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#2a2a2a', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff' }}
-                      formatter={(value: number, name: string) => {
-                        const label =
-                          name === 'max' ? 'Макс.' : name === 'avg' ? 'Сред.' : name === 'min' ? 'Мин.' : name;
-                        return [`${value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`, label];
-                      }}
-                      labelFormatter={m => `Месяц ${m}`}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="max"
-                      name="max"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      dot={{ r: 2.5, fill: '#22c55e' }}
-                      activeDot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="avg"
-                      name="avg"
-                      stroke="#f4f4f5"
-                      strokeWidth={2}
-                      dot={{ r: 2.5, fill: '#f4f4f5' }}
-                      activeDot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="min"
-                      name="min"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      dot={{ r: 2.5, fill: '#ef4444' }}
-                      activeDot={{ r: 4 }}
-                    />
-                  </LineChart>
-                ) : (
+              {futurePrediction && portfolio.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-zinc-500 text-sm px-4 text-center">
+                  Добавьте позиции в портфель — иначе прогноз не строится.
+                </div>
+              ) : futurePrediction && forecastLoading && !forecast && !forecastError ? (
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-400">
+                  <Loader2 className="w-10 h-10 animate-spin text-red-500" />
+                  <span className="text-sm">Загружаем прогноз…</span>
+                </div>
+              ) : futurePrediction ? (
+                <div className="h-full flex flex-col min-h-0">
+                  {forecastError && !forecast && (
+                    <div className="shrink-0 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm">
+                      <div className="flex items-start gap-2 text-red-100">
+                        <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                        <span>{forecastError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (portfolioId) forecastCacheRef.current.delete(portfolioId);
+                          void loadForecastRemote(true);
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs border border-zinc-600"
+                      >
+                        Повторить запрос
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={futureChartData} margin={{ top: 10, right: 16, left: 4, bottom: 28 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                        <XAxis
+                          dataKey="month"
+                          type="number"
+                          domain={[0, futureMonthsMax]}
+                          ticks={monthTicks}
+                          stroke="#666"
+                          tick={{ fill: '#888', fontSize: 10 }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={v => futureChartData.find(r => r.month === v)?.label ?? String(v)}
+                          label={{ value: 'Месяцы', position: 'insideBottom', offset: -2, fill: '#71717a', fontSize: 11 }}
+                        />
+                        <YAxis
+                          stroke="#666"
+                          tick={{ fill: '#888', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={64}
+                          tickFormatter={val => `${Math.round(Number(val) / 1000)}k`}
+                          domain={['auto', 'auto']}
+                          label={{
+                            value: 'Сумма капитала, ₽',
+                            angle: -90,
+                            position: 'insideLeft',
+                            fill: '#71717a',
+                            fontSize: 11,
+                            style: { textAnchor: 'middle' }
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#2a2a2a',
+                            border: '1px solid #3f3f46',
+                            borderRadius: '8px',
+                            color: '#fff'
+                          }}
+                          formatter={(value: number, name: string) => {
+                            const nl =
+                              name === 'max' ? 'Лучший' : name === 'avg' ? 'Средний' : name === 'min' ? 'Худший' : name;
+                            return [`${value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`, nl];
+                          }}
+                          labelFormatter={m => {
+                            const row = futureChartData.find(r => r.month === m);
+                            return row?.label ?? `Месяц ${m}`;
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="max"
+                          name="max"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          dot={{ r: 2.5, fill: '#22c55e' }}
+                          activeDot={{ r: 4 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="avg"
+                          name="avg"
+                          stroke="#f4f4f5"
+                          strokeWidth={2}
+                          dot={{ r: 2.5, fill: '#f4f4f5' }}
+                          activeDot={{ r: 4 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="min"
+                          name="min"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          dot={{ r: 2.5, fill: '#ef4444' }}
+                          activeDot={{ r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -416,33 +665,91 @@ export function Analytics({
                     />
                     <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
                   </AreaChart>
-                )}
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 pb-6 border-b border-zinc-700/40">
-              <span className="text-sm text-zinc-400">Предсказание будущего</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={futurePrediction}
-                aria-label="Показать прогноз капитала на 30 месяцев"
-                onClick={() => setFuturePrediction(v => !v)}
-                className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 ${
-                  futurePrediction ? 'bg-[#b40000]' : 'bg-zinc-600'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                    futurePrediction ? 'translate-x-[26px]' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
+            {futurePrediction && portfolio.length > 0 && forecast && (
+              <div className="space-y-4 mb-8">
+                <p className="text-sm text-zinc-400">
+                  Текущая стоимость бумаг (из прогноза):{' '}
+                  <span className="text-zinc-100 font-mono tabular-nums">
+                    {forecast.current_value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                  </span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(
+                    [
+                      {
+                        title: 'Средний сценарий',
+                        c: forecast.average_case,
+                        border: 'border-zinc-600/80',
+                        line: '#f4f4f5'
+                      },
+                      {
+                        title: 'Лучший сценарий',
+                        c: forecast.best_case,
+                        border: 'border-emerald-600/50',
+                        line: '#22c55e'
+                      },
+                      {
+                        title: 'Худший сценарий',
+                        c: forecast.worst_case,
+                        border: 'border-red-600/50',
+                        line: '#ef4444'
+                      }
+                    ] as const
+                  ).map(({ title, c, border, line }) => (
+                    <div
+                      key={title}
+                      className={`rounded-xl border ${border} bg-[#1f1f22] p-4 flex flex-col gap-2`}
+                    >
+                      <div className="flex items-center gap-2 text-xs text-zinc-500 uppercase tracking-wide">
+                        <span className="inline-block w-8 h-0.5 rounded-full" style={{ backgroundColor: line }} />
+                        {title}
+                      </div>
+                      <div className="text-lg font-bold text-zinc-100 tabular-nums">
+                        {c.final_value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                      </div>
+                      <div
+                        className={`text-sm font-medium tabular-nums ${
+                          c.total_return_pct >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
+                      >
+                        {c.total_return_pct >= 0 ? '+' : ''}
+                        {c.total_return_pct.toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl border border-zinc-700/50 bg-[#1f1f22] p-4 text-sm">
+                  <h4 className="text-zinc-200 font-semibold mb-3">Распределение сценариев</h4>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-zinc-300">
+                    <div className="flex justify-between gap-4 border-b border-zinc-700/30 pb-2 sm:border-0 sm:pb-0">
+                      <dt className="text-zinc-500">Ожидаемая доходность</dt>
+                      <dd
+                        className={`font-mono tabular-nums font-medium ${
+                          forecast.distribution.expected_return_pct >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
+                      >
+                        {forecast.distribution.expected_return_pct >= 0 ? '+' : ''}
+                        {forecast.distribution.expected_return_pct.toFixed(2)}%
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-zinc-500">Вероятность положительного результата</dt>
+                      <dd className="font-mono tabular-nums text-zinc-100">
+                        {forecast.distribution.probability_positive_pct.toFixed(1)}%
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            )}
 
-            {futurePrediction && projectionLegend && (
+            {futurePrediction && portfolio.length > 0 && !forecast && activeLegend && (
               <div className="space-y-3 mb-8">
-                {([projectionLegend.max, projectionLegend.avg, projectionLegend.min] as const).map(row => (
+                {([activeLegend.max, activeLegend.avg, activeLegend.min] as const).map(row => (
                   <div
                     key={row.label}
                     className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm border-b border-zinc-700/30 pb-3 last:border-0 last:pb-0"
@@ -460,6 +767,12 @@ export function Analytics({
                       {row.gain >= 0 ? '+' : ''}
                       {Math.round(row.gain).toLocaleString('ru-RU')} ₽
                     </span>
+                    {'pct' in row && typeof row.pct === 'number' && (
+                      <span className={`tabular-nums ${row.pct >= 0 ? 'text-emerald-400/90' : 'text-red-400/90'}`}>
+                        ({row.pct >= 0 ? '+' : ''}
+                        {row.pct.toFixed(2)}%)
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -540,7 +853,11 @@ export function Analytics({
             </div>
           </div>
 
-          <InvestmentGoals portfolioCount={portfolio.length} uniqueSectors={uniqueSectors} />
+          <InvestmentGoals
+            portfolioCount={portfolio.length}
+            uniqueSectors={uniqueSectors}
+            defaultBudget={initialBalance}
+          />
         </div>
       </div>
     </div>
