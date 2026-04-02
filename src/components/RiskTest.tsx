@@ -531,8 +531,7 @@ export function RiskTest({ portfolioId, portfolio, balance }: RiskTestProps) {
 
         {stressResult && (
           <>
-            <h2 className="text-xl font-bold tracking-tight mb-1">По каждой бумаге</h2>
-            <p className="text-xs text-zinc-500 mb-3">Список можно прокручивать внутри блока — не нужно листать всю страницу.</p>
+            <h2 className="text-xl font-bold tracking-tight mb-3">По каждой бумаге</h2>
             <div className="bg-[#2a2a2a] rounded-2xl border border-zinc-700/50 mb-8 overflow-hidden flex flex-col">
               <div className="max-h-[min(72vh,560px)] overflow-y-auto overflow-x-auto overscroll-y-contain [scrollbar-gutter:stable]">
                 <table className="w-full text-left border-collapse min-w-[720px]">
