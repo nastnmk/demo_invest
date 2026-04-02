@@ -2,8 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Корневой экран: загрузка портфеля, refresh котировок (в т.ч. refresh-live на backend),
- * сделки с проверкой баланса/лимита позиций, дебаунс быстрых докупок (queueTradeDelta).
+ * Главный компонент приложения после входа.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,7 +44,7 @@ export default function App() {
   const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const [portfolioChartPoints, setPortfolioChartPoints] = useState<PortfolioAnalyticsHistoryPoint[]>([]);
   const [portfolioMetrics, setPortfolioMetrics] = useState<PortfolioMetrics | null>(null);
-  /** Только ручное «Обновить цены» — не путать с первичной загрузкой после F5 */
+  // Спиннер только у кнопки обновления цен, не при первой загрузке
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -150,7 +149,7 @@ export default function App() {
     setPortfolioMetrics(metrics);
   };
 
-  /** Полное обновление маркета — только по кнопке «Обновить цены». */
+  // Полный перезапрос цен по кнопке в шапке
   const reloadMarketData = useCallback(async () => {
     if (!portfolioId) return;
     const secids = new Set<string>();
@@ -162,7 +161,7 @@ export default function App() {
     await refreshPortfolioFn(portfolioId, latestStocks);
   }, [portfolioId]);
 
-  /** После сделки: только портфель + цены по затронутым тикерам (без полного fetchStocks). */
+  // После сделки обновляем только нужные тикеры, не весь список бумаг
   const syncPortfolioAfterTrade = useCallback(
     async (touchedSecids: string[]) => {
       if (!portfolioId) return;
@@ -175,7 +174,7 @@ export default function App() {
     [portfolioId]
   );
 
-  /** Только кнопка «Обновить цены» */
+  // Обновление цен по кнопке
   const refreshPrices = useCallback(async () => {
     if (!portfolioId) return;
     setIsRefreshingPrices(true);

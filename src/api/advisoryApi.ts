@@ -44,7 +44,7 @@ export type RecommendedPortfoliosResponse = {
   items: RecommendedPortfolioItem[];
 };
 
-/** Один запрос каталога; кэшировать на уровне страницы по budget/history_days/top_assets. */
+// Запрос готовых подборок портфелей по параметрам бюджета
 export async function getRecommendedPortfolios(params: {
   budget: number;
   history_days?: number;

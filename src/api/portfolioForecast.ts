@@ -39,7 +39,7 @@ const DEFAULT_MONTHS = 6;
 const DEFAULT_SIMULATIONS = 500;
 const DEFAULT_HISTORICAL_DAYS = 252;
 
-/** Один запрос прогноза; не вызывать в цикле и не дублировать без смены portfolio_id/параметров. */
+// Прогноз по портфелю с бэка, не дергать без смены id или параметров
 export async function getPortfolioForecast(
   portfolioId: number,
   opts?: { months?: number; simulations?: number; historical_days?: number }

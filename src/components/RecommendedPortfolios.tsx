@@ -31,13 +31,13 @@ export type AdvisoryThemeKey = 'dream' | 'growth' | 'income';
 
 type Props = {
   defaultBudget: number;
-  /** Показать только одну тему (например, выбранную цель в «Мечты и цели»). */
+  // Одна тема из трёх, например в блоке целей
   focusThemeKey?: AdvisoryThemeKey | null;
-  /** Вложенный вид без внешней «карточки» (внутри блока целей). */
+  // Без большой рамки вокруг блока
   embedded?: boolean;
 };
 
-/** Кэш по ключу — один запрос на комбинацию budget/history/top. */
+// Кэш ответа по бюджету и настройкам, чтобы не дублировать запросы
 const responseCache = new Map<string, RecommendedPortfoliosResponse>();
 
 export function RecommendedPortfolios({

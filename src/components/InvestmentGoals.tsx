@@ -40,7 +40,7 @@ const GOALS: GoalDef[] = [
 type Props = {
   portfolioCount: number;
   uniqueSectors: number;
-  /** Стартовый бюджет для advisory (обычно начальный капитал симулятора). */
+  // Сумма для подсказок подборки, как стартовый баланс
   defaultBudget: number;
   className?: string;
 };

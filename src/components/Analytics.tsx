@@ -48,7 +48,7 @@ const PIE_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#14b
 
 const FUTURE_MONTHS = 30;
 
-/** Слияние траекторий backend-прогноза для LineChart (avg / best / worst). */
+// Три кривые с бэка в одну таблицу для графика
 function buildForecastChartRows(f: PortfolioForecastResponse): Array<{
   month: number;
   label: string;
@@ -73,7 +73,7 @@ function buildForecastChartRows(f: PortfolioForecastResponse): Array<{
   return rows;
 }
 
-/** Упрощённый прогноз: три сценария от текущего капитала (не инвестиционная рекомендация). */
+// Запасной прогноз на фронте если бэк не ответил, не совет
 function computeFutureProjection(
   equityRub: number,
   sharpe: number
